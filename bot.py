@@ -537,12 +537,21 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     # ── Deliver results ──
 
     # Send scene images as media groups (max 10 per group)
+    # Each image gets its scene text as a caption
+    scenes = story["scenes"]
     for i in range(0, len(final_images), 10):
         batch = final_images[i : i + 10]
         media_group = []
         for j, img_path in enumerate(batch):
-            scene_num = i + j + 1
-            caption = f"Scene {scene_num}" if j == 0 else None
+            scene_idx = i + j
+            scene = scenes[scene_idx] if scene_idx < len(scenes) else None
+            if scene:
+                caption = f"Scene {scene['scene_number']}: {scene['text']}"
+                # Telegram caption limit is 1024 chars
+                if len(caption) > 1024:
+                    caption = caption[:1021] + "..."
+            else:
+                caption = None
             media_group.append(InputMediaPhoto(open(img_path, "rb"), caption=caption))
 
         try:
