@@ -32,6 +32,11 @@ RULES:
    settings, or plot turns that still feel cozy and age-appropriate.
 10. Surprise the reader with UNUSUAL animal choices — vary species across stories. Avoid
     defaulting to the same common animals (rabbits, bears, squirrels, foxes) every time.
+11. VARY THE LOCATIONS across scenes. Characters should TRAVEL and EXPLORE — move from
+    one place to another as the story progresses. For example: start at a cozy home,
+    walk through a meadow, discover a waterfall, visit a market, end at a hilltop at sunset.
+    Every scene should NOT have the same background. Make each scene's location visually
+    distinct and interesting.
 
 You MUST respond ONLY with valid JSON in the exact format specified. No markdown, no extra text."""
 
@@ -137,9 +142,8 @@ Return your response as a JSON object with this EXACT structure:
              wearing a tiny red scarf and brown boots"
         }}
     ],
-    "setting": "Detailed description of the story's main setting/environment - colors, time of day, 
-     season, specific landmarks. Example: A sunny meadow with tall green grass, colorful wildflowers, 
-     a sparkling blue stream, and a big oak tree with a red door at its base",
+    "setting": "The story's world or starting environment - general region, season, time period.
+     Example: A magical forest kingdom in early autumn",
     "art_style": "A consistent art style description for all illustrations. Example: Soft watercolor 
      illustration style, warm pastel colors, rounded friendly shapes, picture book quality, 
      hand-drawn feel with gentle lighting",
@@ -147,10 +151,14 @@ Return your response as a JSON object with this EXACT structure:
     "scenes": [
         {{
             "scene_number": 1,
-            "text": "The story text for this scene - 2-3 short sentences maximum, using simple 
+            "background": "The specific location/environment for THIS scene — should change as
+             characters travel. Include colors, lighting, time of day, weather, landmarks.
+             Example: A cozy treehouse kitchen with warm lantern light, wooden shelves full of
+             jars, and a round window showing a pink sunrise",
+            "text": "The story text for this scene - 2-3 short sentences maximum, using simple
              words a 2-3 year old understands. This text will be displayed on the illustration.",
-            "image_description": "Detailed description of what should be shown in this scene's 
-             illustration. Include character positions, expressions, actions, background elements, 
+            "image_description": "Detailed description of what should be shown in this scene's
+             illustration. Include character positions, expressions, actions, background elements,
              colors, and mood. Reference the exact character descriptions from above."
         }}
     ]
@@ -160,10 +168,13 @@ IMPORTANT:
 - Generate exactly {num_scenes} scenes
 - The first scene should introduce the characters and setting
 - The last scene should show the happy ending (and subtly convey the moral, if one exists)
-- Each scene's image_description must reference characters by their EXACT visual descriptions 
+- Each scene's image_description must reference characters by their EXACT visual descriptions
   to ensure visual consistency across all illustrations
 - Scene text should be SHORT (2-3 sentences max) - remember this is for a 2-3 year old
-- Make the story flow naturally from one scene to the next"""
+- Make the story flow naturally from one scene to the next
+- CRITICAL: Each scene MUST have a DIFFERENT background/location. Characters should journey
+  through varied environments (e.g. home → garden → river → mountain → village → beach).
+  Do NOT set every scene in the same place. The background field must be unique per scene."""
 
 
 class StoryGenerator:
@@ -292,7 +303,7 @@ class StoryGenerator:
 
         # Validate each scene
         for i, scene in enumerate(story["scenes"]):
-            for field in ["scene_number", "text", "image_description"]:
+            for field in ["scene_number", "text", "image_description", "background"]:
                 if field not in scene:
                     raise ValueError(f"Scene {i+1} is missing field: '{field}'")
 

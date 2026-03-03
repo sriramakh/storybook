@@ -106,9 +106,11 @@ class ImageGenerator:
 
         style = self.animation_style
 
+        background = scene.get("background") or story.get("setting", "")
+
         prompt = f"""{style['description']}
 
-SETTING: {story['setting']}
+BACKGROUND: {background}
 
 CHARACTERS (draw EXACTLY as described, {style['name']} rendering):
 {character_block}
@@ -215,6 +217,8 @@ Total response MUST be under 500 characters. No headers, no bullet points, no ex
         scenes = story["scenes"]
         all_chars = story["characters"]
 
+        background = scene.get("background") or story.get("setting", "")
+
         if scene_index == 0:
             # ── Scene 1: establish the visual baseline ──
             # Include ALL characters with full descriptions
@@ -225,7 +229,7 @@ Total response MUST be under 500 characters. No headers, no bullet points, no ex
 
             prompt = f"""{style['description']}
 
-SETTING: {story['setting']}
+BACKGROUND: {background}
 
 CHARACTERS — draw EXACTLY as described, every detail matters:
 {character_block}
@@ -496,10 +500,12 @@ SCENE {scene['scene_number']}/{len(scenes)}: {scene['image_description']}{scene_
         elif scene_index == len(scenes) - 1:
             scene_type = "This is the FINAL scene. Show a warm, happy conclusion."
 
+        background = scene.get("background") or story.get("setting", "")
+
         if scene_index == 0:
             prompt = f"""{style['description']}
 
-SETTING: {story['setting']}
+BACKGROUND: {background}
 
 CHARACTERS — draw EVERY character EXACTLY as described. Each character's species, body colors, eye color, clothing colors, accessories, and proportions must match their description PRECISELY:
 {character_block}
@@ -532,7 +538,7 @@ IMPORTANT — CHARACTER VISUAL REFERENCE (how each character ACTUALLY looks — 
 {sheet_section}ORIGINAL CHARACTER DESCRIPTIONS:
 {character_block}
 
-SETTING: {story['setting']}
+BACKGROUND: {background}
 
 SCENE {scene['scene_number']} of {len(scenes)}:
 {scene['image_description']}
