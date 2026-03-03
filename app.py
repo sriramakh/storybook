@@ -141,7 +141,7 @@ def step_select_animation_style() -> dict:
     console.print()
 
     choice = Prompt.ask(
-        "[yellow]Select a style (1-5)[/yellow]",
+        f"[yellow]Select a style (1-{len(keys)})[/yellow]",
         default="1",
         choices=[str(i) for i in range(1, len(keys) + 1)],
     )

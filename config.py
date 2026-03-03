@@ -108,6 +108,66 @@ class Config:
             "story_art_style": "Vintage storybook illustration with colored pencil, gouache, and warm tones",
             "image_rules": "Classic storybook illustration aesthetic — colored pencil & gouache, warm tones, vintage feel",
         },
+        "glowlight_fantasy": {
+            "name": "Glowlight Fantasy",
+            "description": (
+                "Glowlight fantasy children's picture book illustration. "
+                "Luminous bioluminescent glow on characters and environment, deep twilight "
+                "and midnight blue backgrounds, soft neon accents in teal, magenta, and gold, "
+                "fireflies and glowing particles floating in the air, enchanted forest atmosphere "
+                "with radiant mushrooms, glowing flowers, and shimmering water reflections."
+            ),
+            "story_art_style": "Glowlight fantasy with bioluminescent glow, twilight hues, and floating light particles",
+            "image_rules": "Glowlight fantasy aesthetic — luminous glow effects, deep twilight palette, bioluminescent details, magical atmosphere",
+        },
+        "mystical_enchanted": {
+            "name": "Mystical Enchanted",
+            "description": (
+                "Mystical enchanted realm children's picture book illustration. "
+                "Ethereal misty landscapes, ancient stone ruins overgrown with vines, "
+                "swirling aurora-like sky in purples, teals, and silvers, crystalline elements, "
+                "magical runes subtly woven into the environment, soft diffused light "
+                "filtering through ancient trees, mysterious yet warm and inviting."
+            ),
+            "story_art_style": "Mystical enchanted realm with ethereal mist, aurora skies, and crystalline magic",
+            "image_rules": "Mystical enchanted aesthetic — ethereal mist, aurora palette of purples and teals, crystalline elements, ancient and magical",
+        },
+        "paper_cutout": {
+            "name": "Paper Cutout",
+            "description": (
+                "Paper cutout collage children's picture book illustration. "
+                "Layered paper textures with visible edges and subtle shadows between layers, "
+                "bold flat colors with handmade imperfections, torn and cut paper shapes, "
+                "decorative patterns and textures on each paper layer, slight 3D depth "
+                "from stacked cutouts, playful and tactile like Eric Carle or Lois Ehlert."
+            ),
+            "story_art_style": "Paper cutout collage with layered textures, bold flat colors, and handmade feel",
+            "image_rules": "Paper cutout collage aesthetic — layered paper textures, visible edges, bold flat colors, handmade imperfections",
+        },
+        "retro_cartoon": {
+            "name": "Retro Cartoon",
+            "description": (
+                "1950s-1960s retro cartoon children's picture book illustration. "
+                "Mid-century modern design sensibility, limited color palette with mustard yellow, "
+                "burnt orange, olive green, and teal, bold geometric shapes, thick ink outlines, "
+                "screen-print texture and halftone dots, playful atomic-age patterns, "
+                "reminiscent of vintage Hanna-Barbera and UPA animation."
+            ),
+            "story_art_style": "Retro 1950s cartoon with mid-century colors, bold geometry, and screen-print textures",
+            "image_rules": "Retro 1950s-60s cartoon aesthetic — mid-century palette, thick ink outlines, halftone textures, geometric shapes",
+        },
+        "soft_pastel_dream": {
+            "name": "Soft Pastel Dream",
+            "description": (
+                "Soft pastel dream children's picture book illustration. "
+                "Ultra-soft blended pastels in lavender, baby pink, mint green, and butter yellow, "
+                "hazy dreamy atmosphere with gentle bokeh light spots, cotton-candy clouds, "
+                "rounded bubbly character shapes, no hard edges anywhere, "
+                "everything looks plush and huggable like a nursery mobile come to life."
+            ),
+            "story_art_style": "Soft pastel dream with ultra-gentle blended pastels, hazy bokeh, and plush rounded shapes",
+            "image_rules": "Soft pastel dream aesthetic — blended pastels, no hard edges, hazy bokeh, plush bubbly shapes",
+        },
     }
 
     # Image text overlay settings
