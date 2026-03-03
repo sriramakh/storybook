@@ -23,7 +23,7 @@ class Config:
     GLM_API_KEY = os.getenv("GLM_API_KEY", "")
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
-    # MiniMax API (used for story generation)
+    # MiniMax API (used for image generation)
     MINIMAX_API_TOKEN = os.getenv("MINIMAX_API_TOKEN", "")
     MINIMAX_BASE_URL = os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1")
 
@@ -31,6 +31,7 @@ class Config:
     STORY_MODEL = os.getenv("STORY_MODEL", "gpt-4o-mini")
     IMAGE_MODEL = os.getenv("IMAGE_MODEL", "cogView-4-250304")
     IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1024x1536")
+    IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "gemini")  # "gemini", "gpt-image", "minimax", or "cogview"
 
     # Story settings
     MIN_SCENES = int(os.getenv("MIN_SCENES", "10"))
@@ -43,6 +44,10 @@ class Config:
     CHARACTER_REGISTRY_PATH = os.getenv(
         "CHARACTER_REGISTRY_PATH", os.path.join(OUTPUT_DIR, "character_registry.json")
     )
+
+    # Telegram bot
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    ALLOWED_USER_IDS = os.getenv("ALLOWED_USER_IDS", "")
 
     # Animation styles
     DEFAULT_ANIMATION_STYLE = "pixar_3d"
@@ -129,8 +134,20 @@ class Config:
             raise ValueError(
                 "❌ GEMINI_API_KEY is not set! Please add your Google Gemini API key to the .env file."
             )
-        if not cls.GLM_API_KEY:
+        if cls.IMAGE_PROVIDER == "cogview" and not cls.GLM_API_KEY:
             raise ValueError(
                 "❌ GLM_API_KEY is not set! Please add your GLM/ZhipuAI API key to the .env file."
+            )
+        if cls.IMAGE_PROVIDER == "minimax" and not cls.MINIMAX_API_TOKEN:
+            raise ValueError(
+                "❌ MINIMAX_API_TOKEN is not set! Please add your MiniMax API token to the .env file."
+            )
+        if cls.IMAGE_PROVIDER == "gpt-image" and not cls.OPENAI_API_KEY:
+            raise ValueError(
+                "❌ OPENAI_API_KEY is not set! Please add your OpenAI API key to the .env file."
+            )
+        if cls.IMAGE_PROVIDER == "gemini" and not cls.GEMINI_API_KEY:
+            raise ValueError(
+                "❌ GEMINI_API_KEY is not set! Please add your Gemini API key to the .env file."
             )
         return True

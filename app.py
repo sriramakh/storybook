@@ -17,17 +17,13 @@ Usage:
 """
 
 import os
-import re
 import sys
-import json
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.prompt import Prompt, Confirm
-from rich.markdown import Markdown
 from rich.table import Table
-from rich import print as rprint
 
 from config import Config
 from story_generator import StoryGenerator
@@ -35,61 +31,9 @@ from image_generator import ImageGenerator
 from text_overlay import TextOverlay
 from pdf_compiler import StoryBookPDF
 from character_registry import CharacterRegistry
+from utils import sanitize_folder_name, get_next_story_number, create_story_folder, save_story_json
 
 console = Console()
-
-
-# --------------------------------------------------------------------------- #
-#  Utility helpers
-# --------------------------------------------------------------------------- #
-
-def sanitize_folder_name(title: str) -> str:
-    """Convert a story title into a safe folder name."""
-    # Remove special characters, keep alphanumeric and spaces
-    clean = re.sub(r'[^\w\s-]', '', title)
-    # Replace spaces with underscores
-    clean = re.sub(r'\s+', '_', clean.strip())
-    return clean
-
-
-def get_next_story_number(output_dir: str) -> int:
-    """
-    Determine the next serial number for a story folder.
-    Scans existing folders in the output directory.
-    """
-    if not os.path.exists(output_dir):
-        return 1
-
-    existing = []
-    for name in os.listdir(output_dir):
-        if os.path.isdir(os.path.join(output_dir, name)):
-            # Try to parse the serial number prefix
-            match = re.match(r'^(\d+)_', name)
-            if match:
-                existing.append(int(match.group(1)))
-
-    return max(existing, default=0) + 1
-
-
-def create_story_folder(output_dir: str, serial_number: int, title: str) -> str:
-    """
-    Create the story folder: <output_dir>/<sno>_<title>/
-
-    Returns:
-        str: Path to the created folder
-    """
-    folder_name = f"{serial_number:03d}_{sanitize_folder_name(title)}"
-    folder_path = os.path.join(output_dir, folder_name)
-    os.makedirs(folder_path, exist_ok=True)
-    return folder_path
-
-
-def save_story_json(story: dict, folder_path: str) -> str:
-    """Save the story data as JSON for reference."""
-    json_path = os.path.join(folder_path, "story_data.json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(story, f, indent=2, ensure_ascii=False)
-    return json_path
 
 
 # --------------------------------------------------------------------------- #
@@ -299,8 +243,15 @@ def step_generate_images(image_gen: ImageGenerator, story: dict, folder_path: st
     """
     console.print("\n[bold cyan]━━━ STEP 2: Image Generation ━━━[/bold cyan]\n")
     style_name = image_gen.animation_style["name"]
+    provider_labels = {
+        "minimax": "MiniMax image-01",
+        "gemini": "Gemini Flash",
+        "gpt-image": "GPT-image-1",
+        "cogview": Config.IMAGE_MODEL,
+    }
+    provider_label = provider_labels.get(Config.IMAGE_PROVIDER, Config.IMAGE_PROVIDER)
     console.print(
-        f"[cyan]Generating {len(story['scenes'])} {style_name} illustrations using {Config.IMAGE_MODEL}...[/cyan]"
+        f"[cyan]Generating {len(story['scenes'])} {style_name} illustrations using {provider_label}...[/cyan]"
     )
     console.print("[dim]This may take several minutes due to API rate limits.[/dim]\n")
 

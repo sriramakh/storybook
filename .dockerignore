@@ -1,0 +1,12 @@
+.env
+.env.local
+.git/
+venv/
+.venv/
+stories/
+__pycache__/
+*.pyc
+*.md
+docs/
+.DS_Store
+*.log

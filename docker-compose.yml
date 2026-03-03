@@ -1,0 +1,7 @@
+services:
+  storybook-bot:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./stories:/app/stories

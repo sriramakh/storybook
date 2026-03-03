@@ -4,3 +4,5 @@ fpdf2>=2.7.0
 python-dotenv>=1.0.0
 rich>=13.0.0
 requests>=2.31.0
+google-generativeai>=0.8.0
+python-telegram-bot>=21.0
