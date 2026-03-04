@@ -37,6 +37,17 @@ RULES:
     walk through a meadow, discover a waterfall, visit a market, end at a hilltop at sunset.
     Every scene should NOT have the same background. Make each scene's location visually
     distinct and interesting.
+12. CONTEXT-AWARE CHARACTERS: When the user provides a story description, your characters
+    MUST match the context. If the user says "father teaching daughter to ride a bicycle",
+    the father and daughter MUST be human — do NOT substitute them with random animals.
+    If the user says "fish helping friends escape a shark", ALL the friends MUST be aquatic
+    creatures (fish, octopus, seahorse, turtle, etc.) — do NOT use land animals like flamingos.
+    Respect the user's intent precisely. Only add animal/fantasy characters when the description
+    calls for them or leaves the choice open.
+13. FLEXIBLE CHARACTER COUNT: Use as many characters as the story naturally requires — NOT
+    always 3. A story about a father and daughter needs 2 main characters (plus optional
+    side characters). A story about a school of fish may need 5-6. A solo adventure needs 1.
+    Let the plot dictate the cast size (typically 2-6 characters).
 
 You MUST respond ONLY with valid JSON in the exact format specified. No markdown, no extra text."""
 
@@ -148,6 +159,9 @@ Return your response as a JSON object with this EXACT structure:
      illustration style, warm pastel colors, rounded friendly shapes, picture book quality, 
      hand-drawn feel with gentle lighting",
     "moral": "A gentle moral in one simple sentence, OR null if the story is just a fun adventure",
+    "instagram_caption": "A single catchy, heartwarming line for Instagram — include 2-3 relevant
+     emojis, make it appeal to parents of toddlers. Example: Tiny fins, big courage — sometimes
+     the smallest fish makes the biggest splash 🐠✨🌊",
     "scenes": [
         {{
             "scene_number": 1,
@@ -235,7 +249,11 @@ class StoryGenerator:
         if description:
             parts.append(
                 f"The user wants a story about: {description}\n"
-                "Build the story around this idea.\n"
+                "Build the story around this idea. IMPORTANT: The characters MUST match the "
+                "user's description exactly. If the user mentions humans (father, daughter, boy, "
+                "girl, etc.), use HUMAN characters — do NOT replace them with animals. If the "
+                "user mentions specific animals or a specific environment (ocean, jungle, farm), "
+                "ALL characters must fit that context. Respect the user's intent precisely.\n"
             )
         parts.append(STORY_USER_PROMPT.format(num_scenes=num_scenes))
 
@@ -248,17 +266,19 @@ class StoryGenerator:
             "do NOT force a lesson if it doesn't fit naturally):\n" + theme_bullets
         )
 
-        # Inject a random subset of species ideas — encourages variety
-        species_sample = random.sample(
-            CHARACTER_SPECIES_POOL, min(10, len(CHARACTER_SPECIES_POOL))
-        )
-        species_list = ", ".join(species_sample)
-        parts.append(
-            "CHARACTER INSPIRATION — Choose from DIFFERENT and UNEXPECTED species. "
-            "Avoid always using rabbits, bears, and squirrels. "
-            "Here are some ideas (pick 2-3 that inspire you, or invent your own):\n"
-            f"  {species_list}"
-        )
+        # Inject species ideas only for auto mode — in custom mode the user's
+        # description dictates the characters, and random species would mislead the model
+        if not description:
+            species_sample = random.sample(
+                CHARACTER_SPECIES_POOL, min(10, len(CHARACTER_SPECIES_POOL))
+            )
+            species_list = ", ".join(species_sample)
+            parts.append(
+                "CHARACTER INSPIRATION — Choose from DIFFERENT and UNEXPECTED species. "
+                "Avoid always using rabbits, bears, and squirrels. "
+                "Here are some ideas (pick 2-3 that inspire you, or invent your own):\n"
+                f"  {species_list}"
+            )
 
         if character_names_prompt:
             parts.append(character_names_prompt)

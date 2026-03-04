@@ -360,6 +360,9 @@ def _format_story_preview(story: dict) -> str:
     if story.get("moral"):
         lines.append(f"\nMoral: {story['moral']}")
 
+    if story.get("instagram_caption"):
+        lines.append(f"\nIG Caption: {story['instagram_caption']}")
+
     lines.append(f"\nScenes: {len(story['scenes'])}")
     lines.append(f"Setting: {story['setting'][:120]}")
 
@@ -583,6 +586,11 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             InlineKeyboardButton("Done", callback_data="another:no"),
         ]
     ])
+    # Send Instagram caption as a separate copyable message
+    ig_caption = story.get("instagram_caption", "")
+    if ig_caption:
+        await query.message.reply_text(f"Instagram Caption:\n\n{ig_caption}")
+
     await query.message.reply_text(
         f"Storybook complete!\n"
         f"Title: {story['title']}\n"

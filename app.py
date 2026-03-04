@@ -110,6 +110,17 @@ def display_story_preview(story: dict):
                 border_style="yellow",
             )
         )
+
+    # Instagram caption
+    if story.get("instagram_caption"):
+        console.print()
+        console.print(
+            Panel(
+                f"[italic]{story['instagram_caption']}[/italic]",
+                title="📸 Instagram Caption",
+                border_style="magenta",
+            )
+        )
         console.print()
 
 
@@ -429,6 +440,8 @@ def main():
         summary_table.add_row("Scenes", str(len(story["scenes"])))
         if story.get("moral"):
             summary_table.add_row("Moral", story["moral"])
+        if story.get("instagram_caption"):
+            summary_table.add_row("IG Caption", story["instagram_caption"])
         summary_table.add_row("Folder", folder_path)
         summary_table.add_row("PDF", pdf_path)
         summary_table.add_row("Images", f"{len(final_images)} JPEG files")
