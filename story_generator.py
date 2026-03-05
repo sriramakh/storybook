@@ -27,7 +27,13 @@ RULES:
 5. Characters should have friendly, easy-to-pronounce names.
 6. Scenes should be vivid and colorful - describe colors, sounds, and feelings.
 7. Each scene should naturally flow into the next.
-8. Avoid anything scary, violent, or sad. Keep the tone gentle and reassuring.
+8. Avoid anything genuinely scary, violent, or sad. Keep the tone gentle and reassuring.
+   HOWEVER, mild comical mishaps are perfectly fine and encouraged — a character can
+   trip and fall, bump their head, get a "boo-boo" on their knee from falling off a bicycle,
+   two toy cars can bonk into each other, a character can slip on a banana peel, etc.
+   These small slapstick moments make stories relatable and funny for toddlers. Just keep
+   the tone lighthearted — the character always gets back up, laughs it off, or gets a
+   comforting hug. No real injuries, no crying in pain, no lasting harm.
 9. Be ORIGINAL — avoid cliché storylines. Surprise the reader with unexpected characters,
    settings, or plot turns that still feel cozy and age-appropriate.
 10. Surprise the reader with UNUSUAL animal choices — vary species across stories. Avoid
@@ -326,6 +332,128 @@ class StoryGenerator:
             for field in ["scene_number", "text", "image_description", "background"]:
                 if field not in scene:
                     raise ValueError(f"Scene {i+1} is missing field: '{field}'")
+
+    def regenerate_scenes(
+        self,
+        story: dict,
+        scene_numbers: list[int],
+        instructions: str = "",
+    ) -> dict:
+        """
+        Rewrite specific scenes based on user instructions.
+
+        Args:
+            story: The full story dict
+            scene_numbers: List of scene numbers (1-based) to rewrite
+            instructions: User's description of what to change
+
+        Returns:
+            dict: Updated story with rewritten scenes
+        """
+        char_block = "\n".join(
+            f"- {c['name']} ({c['type']}): {c['description']}"
+            for c in story["characters"]
+        )
+
+        scenes_context = []
+        for s in story["scenes"]:
+            if s["scene_number"] in scene_numbers:
+                scenes_context.append(
+                    f"Scene {s['scene_number']} [REWRITE]: {s['text']}"
+                )
+            else:
+                scenes_context.append(
+                    f"Scene {s['scene_number']}: {s['text']}"
+                )
+
+        instruction_block = ""
+        if instructions:
+            instruction_block = f"""
+USER'S REQUESTED CHANGES:
+{instructions}
+
+Follow the user's instructions precisely when rewriting the marked scenes.
+"""
+
+        prompt = f"""You are rewriting specific scenes in an existing children's bedtime story.
+Keep the story's tone, characters, and flow consistent.
+
+STORY TITLE: {story['title']}
+SETTING: {story['setting']}
+ART STYLE: {story['art_style']}
+
+CHARACTERS:
+{char_block}
+
+CURRENT SCENES:
+{chr(10).join(scenes_context)}
+{instruction_block}
+Rewrite ONLY the scenes marked [REWRITE]. Apply the user's requested changes if provided,
+otherwise provide fresh text. Each rewritten scene needs a new image_description and
+background that fit the story flow — the scene before and after should connect naturally.
+
+Return ONLY a JSON array of the rewritten scenes:
+[
+    {{
+        "scene_number": N,
+        "background": "new background for this scene",
+        "text": "new story text for this scene",
+        "image_description": "new image description for this scene"
+    }}
+]
+
+RULES:
+- Keep text SHORT (2-3 sentences max, for a 2-3 year old)
+- Reference characters by their EXACT visual descriptions
+- Each scene must have a DIFFERENT background from its neighbours
+- Mild comical mishaps (tripping, bumping, small boo-boos) are fine
+- Return ONLY valid JSON array, no extra text"""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": STORY_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.9,
+            max_tokens=4096,
+        )
+
+        raw = response.choices[0].message.content
+        new_scenes = json.loads(self._extract_json_array(raw))
+
+        # Merge regenerated scenes back into the story
+        scene_map = {s["scene_number"]: s for s in new_scenes}
+        for i, scene in enumerate(story["scenes"]):
+            if scene["scene_number"] in scene_map:
+                new = scene_map[scene["scene_number"]]
+                story["scenes"][i]["text"] = new["text"]
+                story["scenes"][i]["image_description"] = new["image_description"]
+                story["scenes"][i]["background"] = new.get("background", scene.get("background", ""))
+
+        return story
+
+    @staticmethod
+    def _extract_json_array(text: str) -> str:
+        """Extract a JSON array string from model output."""
+        text = text.strip()
+        # Try direct parse
+        if text.startswith("["):
+            return text
+
+        # Try markdown fence
+        import re as _re
+        match = _re.search(r"```(?:json)?\s*\n(.*?)\n```", text, _re.DOTALL)
+        if match:
+            return match.group(1)
+
+        # Find first [ ... ] block
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1:
+            return text[start : end + 1]
+
+        raise ValueError("Could not extract JSON array from model response")
 
     def format_story_preview(self, story: dict) -> str:
         """

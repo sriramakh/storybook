@@ -14,6 +14,7 @@ Requires TELEGRAM_BOT_TOKEN and ALLOWED_USER_IDS in .env.
 import asyncio
 import logging
 import os
+import re
 import time
 
 from telegram import (
@@ -62,9 +63,11 @@ logger = logging.getLogger("storybook.bot")
     ENTERING_DESCRIPTION,
     CHOOSING_SCENES,
     REVIEWING_STORY,
+    EDITING_SCENES,
+    ENTERING_EDIT_INSTRUCTIONS,
     GENERATING_IMAGES,
     STORY_COMPLETE,
-) = range(8)
+) = range(10)
 
 # ── Parse allowed user IDs ────────────────────────────────────────────────── #
 
@@ -85,7 +88,6 @@ def _user_filter() -> filters.BaseFilter:
     """Return a filter that only passes messages from allowed users."""
     if ALLOWED_USERS:
         return filters.User(user_id=ALLOWED_USERS)
-    # No whitelist configured — allow everyone (useful for testing)
     return filters.ALL
 
 
@@ -122,7 +124,7 @@ class ProgressNotifier:
             self._last_edit = now
             self._last_text = text
         except Exception:
-            pass  # Telegram may reject identical edits
+            pass
 
     async def final(self, text: str):
         """Send a final edit regardless of throttle."""
@@ -135,6 +137,49 @@ class ProgressNotifier:
             self._last_text = text
         except Exception:
             pass
+
+
+# ── Helper: send story preview across multiple messages ───────────────────── #
+
+
+async def _send_story_preview(message, story: dict):
+    """Send a full story preview, splitting across messages if needed."""
+    # Header message: title, characters, moral, caption
+    header_lines = [f"Title: {story['title']}\n"]
+
+    header_lines.append("Characters:")
+    for c in story["characters"]:
+        header_lines.append(f"  - {c['name']} ({c['type']}): {c['description'][:80]}")
+
+    if story.get("moral"):
+        header_lines.append(f"\nMoral: {story['moral']}")
+
+    if story.get("instagram_caption"):
+        header_lines.append(f"\nIG Caption: {story['instagram_caption']}")
+
+    header_lines.append(f"\nSetting: {story['setting'][:120]}")
+
+    await message.reply_text("\n".join(header_lines))
+
+    # Scene messages: batch scenes to stay under 4096 char limit
+    scenes = story["scenes"]
+    batch_lines = []
+    batch_len = 0
+
+    for scene in scenes:
+        line = f"Scene {scene['scene_number']}: {scene['text']}"
+        line_len = len(line) + 1  # +1 for newline
+
+        if batch_len + line_len > 3900 and batch_lines:
+            await message.reply_text("\n\n".join(batch_lines))
+            batch_lines = []
+            batch_len = 0
+
+        batch_lines.append(line)
+        batch_len += line_len
+
+    if batch_lines:
+        await message.reply_text("\n\n".join(batch_lines))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -169,7 +214,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2. Picking an art style\n"
         "3. Auto or custom story mode\n"
         "4. Number of scenes\n"
-        "5. Reviewing the story\n"
+        "5. Reviewing the story (approve / regenerate / edit scenes)\n"
         "6. Generating illustrations + PDF"
     )
 
@@ -268,7 +313,6 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     await query.edit_message_text("Mode: Auto (Random)")
 
-    # Skip to scene count
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("10", callback_data="scenes:10"),
@@ -304,12 +348,10 @@ async def choose_scenes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     await query.edit_message_text(f"Scenes: {num_scenes}")
 
-    # Send a "generating..." message
     msg = await query.message.reply_text(
         f"Generating a {num_scenes}-scene bedtime story..."
     )
 
-    # Generate story in a thread to avoid blocking
     style = context.user_data["style"]
     description = context.user_data.get("description")
 
@@ -333,55 +375,28 @@ async def choose_scenes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     context.user_data["story"] = story
 
-    # Build preview (title + characters + moral, within 4096 char limit)
-    preview = _format_story_preview(story)
+    await msg.edit_text("Story generated! Here's the preview:")
 
+    # Send full preview across multiple messages
+    await _send_story_preview(query.message, story)
+
+    # Review buttons
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("Approve", callback_data="review:approve"),
-            InlineKeyboardButton("Regenerate", callback_data="review:regenerate"),
+            InlineKeyboardButton("Regenerate All", callback_data="review:regenerate"),
+        ],
+        [
+            InlineKeyboardButton("Edit Scenes", callback_data="review:edit"),
             InlineKeyboardButton("Cancel", callback_data="review:cancel"),
-        ]
+        ],
     ])
-
-    await msg.edit_text(preview)
     await query.message.reply_text("What would you like to do?", reply_markup=keyboard)
     return REVIEWING_STORY
 
 
-def _format_story_preview(story: dict) -> str:
-    """Format story for Telegram preview (stays under 4096 chars)."""
-    lines = [f"Title: {story['title']}\n"]
-
-    lines.append("Characters:")
-    for c in story["characters"]:
-        lines.append(f"  - {c['name']} ({c['type']}): {c['description'][:80]}")
-
-    if story.get("moral"):
-        lines.append(f"\nMoral: {story['moral']}")
-
-    if story.get("instagram_caption"):
-        lines.append(f"\nIG Caption: {story['instagram_caption']}")
-
-    lines.append(f"\nScenes: {len(story['scenes'])}")
-    lines.append(f"Setting: {story['setting'][:120]}")
-
-    # Add first and last scene text as a teaser
-    scenes = story["scenes"]
-    if scenes:
-        lines.append(f"\nScene 1: {scenes[0]['text'][:150]}")
-        if len(scenes) > 1:
-            lines.append(f"...\nScene {scenes[-1]['scene_number']}: {scenes[-1]['text'][:150]}")
-
-    text = "\n".join(lines)
-    # Hard cap at 4096
-    if len(text) > 4000:
-        text = text[:4000] + "\n..."
-    return text
-
-
 async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle story review (approve / regenerate / cancel)."""
+    """Handle story review (approve / regenerate / edit / cancel)."""
     query = update.callback_query
     await query.answer()
     action = query.data.split(":")[1]
@@ -390,8 +405,18 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await query.edit_message_text("Story cancelled.")
         return ConversationHandler.END
 
+    if action == "edit":
+        story = context.user_data["story"]
+        total = len(story["scenes"])
+        await query.edit_message_text(
+            f"Which scenes to regenerate? (1-{total})\n\n"
+            "Send scene numbers separated by commas.\n"
+            "Examples: 3 or 2,5,8 or 4-7"
+        )
+        return EDITING_SCENES
+
     if action == "regenerate":
-        await query.edit_message_text("Regenerating...")
+        await query.edit_message_text("Regenerating entire story...")
 
         num_scenes = context.user_data["num_scenes"]
         style = context.user_data["style"]
@@ -418,17 +443,19 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             return ConversationHandler.END
 
         context.user_data["story"] = story
-        preview = _format_story_preview(story)
+
+        await _send_story_preview(query.message, story)
 
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("Approve", callback_data="review:approve"),
-                InlineKeyboardButton("Regenerate", callback_data="review:regenerate"),
+                InlineKeyboardButton("Regenerate All", callback_data="review:regenerate"),
+            ],
+            [
+                InlineKeyboardButton("Edit Scenes", callback_data="review:edit"),
                 InlineKeyboardButton("Cancel", callback_data="review:cancel"),
-            ]
+            ],
         ])
-
-        await query.message.reply_text(preview)
         await query.message.reply_text("What would you like to do?", reply_markup=keyboard)
         return REVIEWING_STORY
 
@@ -460,7 +487,6 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         "Scene 0/0 — starting..."
     )
 
-    # Run image pipeline in a thread with progress updates
     notifier = ProgressNotifier(
         chat_id=progress_msg.chat_id,
         message_id=progress_msg.message_id,
@@ -540,7 +566,6 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     # ── Deliver results ──
 
     # Send scene images as media groups (max 10 per group)
-    # Each image gets its scene text as a caption
     scenes = story["scenes"]
     for i in range(0, len(final_images), 10):
         batch = final_images[i : i + 10]
@@ -550,7 +575,6 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             scene = scenes[scene_idx] if scene_idx < len(scenes) else None
             if scene:
                 caption = f"Scene {scene['scene_number']}: {scene['text']}"
-                # Telegram caption limit is 1024 chars
                 if len(caption) > 1024:
                     caption = caption[:1021] + "..."
             else:
@@ -562,7 +586,6 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         except Exception as e:
             logger.warning(f"Failed to send media group: {e}")
         finally:
-            # Close file handles
             for m in media_group:
                 if hasattr(m.media, "close"):
                     m.media.close()
@@ -600,6 +623,112 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return STORY_COMPLETE
 
 
+def _parse_scene_numbers(text: str, total: int) -> list[int]:
+    """Parse scene numbers from input like '3', '2,5,8', '4-7', '1,3,5-8'."""
+    scene_numbers = set()
+    for part in re.split(r"[,\s]+", text.strip()):
+        part = part.strip()
+        if not part:
+            continue
+        range_match = re.match(r"^(\d+)\s*-\s*(\d+)$", part)
+        if range_match:
+            start, end = int(range_match.group(1)), int(range_match.group(2))
+            for n in range(start, end + 1):
+                if 1 <= n <= total:
+                    scene_numbers.add(n)
+        elif part.isdigit():
+            n = int(part)
+            if 1 <= n <= total:
+                scene_numbers.add(n)
+    return sorted(scene_numbers)
+
+
+async def edit_scenes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle scene edit — step 1: capture which scene numbers to edit."""
+    text = update.message.text.strip()
+    story = context.user_data["story"]
+    total = len(story["scenes"])
+
+    scene_list = _parse_scene_numbers(text, total)
+
+    if not scene_list:
+        await update.message.reply_text(
+            f"No valid scene numbers found. Please enter numbers between 1 and {total}.\n"
+            "Examples: 3 or 2,5,8 or 4-7"
+        )
+        return EDITING_SCENES
+
+    context.user_data["edit_scene_numbers"] = scene_list
+
+    # Show the current text for the selected scenes
+    lines = ["Current text for the selected scenes:\n"]
+    for n in scene_list:
+        scene = story["scenes"][n - 1]
+        lines.append(f"Scene {n}: {scene['text']}")
+
+    lines.append("\nDescribe what you want to change:")
+    lines.append("(e.g. 'Make scene 3 about falling off the bicycle. Scene 5 should be at the beach.')")
+
+    await update.message.reply_text("\n\n".join(lines))
+    return ENTERING_EDIT_INSTRUCTIONS
+
+
+async def enter_edit_instructions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle scene edit — step 2: apply user's instructions."""
+    instructions = update.message.text.strip()
+    story = context.user_data["story"]
+    scene_list = context.user_data["edit_scene_numbers"]
+
+    msg = await update.message.reply_text(
+        f"Rewriting scene(s) {', '.join(str(n) for n in scene_list)}..."
+    )
+
+    generator = StoryGenerator()
+
+    try:
+        updated_story = await asyncio.to_thread(
+            generator.regenerate_scenes,
+            story=story,
+            scene_numbers=scene_list,
+            instructions=instructions,
+        )
+    except Exception as e:
+        await msg.edit_text(f"Scene edit failed: {e}")
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Approve", callback_data="review:approve"),
+                InlineKeyboardButton("Edit Scenes", callback_data="review:edit"),
+                InlineKeyboardButton("Cancel", callback_data="review:cancel"),
+            ],
+        ])
+        await update.message.reply_text("What would you like to do?", reply_markup=keyboard)
+        return REVIEWING_STORY
+
+    context.user_data["story"] = updated_story
+
+    await msg.edit_text(f"Rewrote scene(s): {', '.join(str(n) for n in scene_list)}")
+
+    # Show updated scenes
+    for n in scene_list:
+        scene = updated_story["scenes"][n - 1]
+        await update.message.reply_text(
+            f"Scene {scene['scene_number']} (updated):\n{scene['text']}"
+        )
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Approve", callback_data="review:approve"),
+            InlineKeyboardButton("Regenerate All", callback_data="review:regenerate"),
+        ],
+        [
+            InlineKeyboardButton("Edit More Scenes", callback_data="review:edit"),
+            InlineKeyboardButton("Cancel", callback_data="review:cancel"),
+        ],
+    ])
+    await update.message.reply_text("What would you like to do?", reply_markup=keyboard)
+    return REVIEWING_STORY
+
+
 async def story_complete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle 'generate another' or 'done'."""
     query = update.callback_query
@@ -608,7 +737,6 @@ async def story_complete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if action == "yes":
         await query.edit_message_text("Starting a new story...")
-        # Re-enter the conversation from provider selection
         default = context.user_data.get("default_provider", Config.IMAGE_PROVIDER)
         gpt_label = "GPT-image-1-mini (Fast)"
         gem_label = "Gemini Flash (Premium)"
@@ -662,7 +790,6 @@ def main():
 
     app = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
 
-    # Story generation conversation
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("story", story_entry, filters=user_filter)],
         states={
@@ -683,6 +810,12 @@ def main():
             ],
             REVIEWING_STORY: [
                 CallbackQueryHandler(review_story, pattern=r"^review:"),
+            ],
+            EDITING_SCENES: [
+                MessageHandler(user_filter & filters.TEXT & ~filters.COMMAND, edit_scenes),
+            ],
+            ENTERING_EDIT_INSTRUCTIONS: [
+                MessageHandler(user_filter & filters.TEXT & ~filters.COMMAND, enter_edit_instructions),
             ],
             STORY_COMPLETE: [
                 CallbackQueryHandler(story_complete, pattern=r"^another:"),

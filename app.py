@@ -162,6 +162,85 @@ def step_select_animation_style() -> dict:
     return selected
 
 
+def _edit_scenes_cli(story: dict, generator: StoryGenerator) -> dict:
+    """Let the user pick specific scenes to regenerate."""
+    import re
+
+    total = len(story["scenes"])
+    console.print(f"\n[cyan]Which scenes to regenerate? (1-{total})[/cyan]")
+    console.print("[dim]Enter scene numbers separated by commas, or ranges.[/dim]")
+    console.print("[dim]Examples: 3  or  2,5,8  or  4-7  or  1,3,10-12[/dim]")
+
+    raw = Prompt.ask("[yellow]Scene numbers[/yellow]")
+
+    # Parse scene numbers
+    scene_numbers = set()
+    for part in re.split(r"[,\s]+", raw.strip()):
+        part = part.strip()
+        if not part:
+            continue
+        range_match = re.match(r"^(\d+)\s*-\s*(\d+)$", part)
+        if range_match:
+            start, end = int(range_match.group(1)), int(range_match.group(2))
+            for n in range(start, end + 1):
+                if 1 <= n <= total:
+                    scene_numbers.add(n)
+        elif part.isdigit():
+            n = int(part)
+            if 1 <= n <= total:
+                scene_numbers.add(n)
+
+    if not scene_numbers:
+        console.print("[red]No valid scene numbers entered. Returning to review.[/red]")
+        return story
+
+    scene_list = sorted(scene_numbers)
+
+    # Show current text for selected scenes
+    console.print()
+    for n in scene_list:
+        scene = story["scenes"][n - 1]
+        console.print(
+            Panel(
+                f"[white]{scene['text']}[/white]",
+                title=f"Scene {n} (current)",
+                border_style="dim",
+                padding=(0, 2),
+            )
+        )
+
+    console.print()
+    instructions = Prompt.ask(
+        "[yellow]Describe what you want to change[/yellow]"
+    )
+
+    console.print(f"\n[cyan]Rewriting scene(s): {', '.join(str(n) for n in scene_list)}...[/cyan]")
+
+    with console.status("[bold green]Rewriting scenes..."):
+        try:
+            story = generator.regenerate_scenes(story, scene_list, instructions=instructions)
+        except Exception as e:
+            console.print(f"\n[red]❌ Scene edit failed: {e}[/red]")
+            return story
+
+    console.print("[green]✅ Scenes updated![/green]")
+
+    # Show updated scenes
+    for n in scene_list:
+        scene = story["scenes"][n - 1]
+        console.print(
+            Panel(
+                f"[white]{scene['text']}[/white]\n\n"
+                f"[dim italic]🖼️  {scene['image_description'][:120]}...[/dim italic]",
+                title=f"Scene {scene['scene_number']} (updated)",
+                border_style="green",
+                padding=(0, 2),
+            )
+        )
+
+    return story
+
+
 def step_generate_story(
     generator: StoryGenerator,
     selected_style: dict,
@@ -233,7 +312,7 @@ def step_generate_story(
         console.print("[bold]What would you like to do?[/bold]")
         choice = Prompt.ask(
             "[yellow]Choose[/yellow]",
-            choices=["approve", "regenerate", "quit"],
+            choices=["approve", "regenerate", "edit", "quit"],
             default="approve",
         )
 
@@ -243,6 +322,10 @@ def step_generate_story(
         elif choice == "quit":
             console.print("\n[dim]Goodbye! 👋[/dim]")
             sys.exit(0)
+        elif choice == "edit":
+            story = _edit_scenes_cli(story, generator)
+            display_story_preview(story)
+            continue
         else:
             console.print("\n[yellow]🔄 Generating a new story...[/yellow]")
             continue
