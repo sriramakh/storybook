@@ -37,6 +37,7 @@ from config import Config
 from story_generator import StoryGenerator
 from image_generator import ImageGenerator
 from text_overlay import TextOverlay
+from video_compiler import VideoCompiler
 from pdf_compiler import StoryBookPDF
 from character_registry import CharacterRegistry
 from utils import (
@@ -543,6 +544,24 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await query.message.reply_text(f"Text overlay failed: {e}")
         return ConversationHandler.END
 
+    await notifier.final("Compiling video slideshow...")
+
+    # Video compilation
+    vid_compiler = VideoCompiler()
+    video_filename = f"{sanitize_folder_name(story['title'])}.mp4"
+    video_path = os.path.join(folder_path, video_filename)
+
+    try:
+        video_path = await asyncio.to_thread(
+            vid_compiler.compile_video,
+            story=story,
+            image_paths=final_images,
+            output_path=video_path,
+        )
+    except Exception as e:
+        logger.warning(f"Video compilation failed: {e}")
+        video_path = None
+
     await notifier.final("Compiling PDF...")
 
     # PDF compilation
@@ -601,6 +620,20 @@ async def review_story(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     except Exception as e:
         logger.error(f"Failed to send PDF: {e}")
         await query.message.reply_text(f"PDF saved at: {pdf_path}")
+
+    # Send video
+    if video_path and os.path.exists(video_path):
+        try:
+            with open(video_path, "rb") as vf:
+                await query.message.reply_video(
+                    video=vf,
+                    filename=os.path.basename(video_path),
+                    caption=f"{story['title']} — Video Storybook",
+                    supports_streaming=True,
+                )
+        except Exception as e:
+            logger.error(f"Failed to send video: {e}")
+            await query.message.reply_text(f"Video saved at: {video_path}")
 
     # Offer to generate another
     keyboard = InlineKeyboardMarkup([

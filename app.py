@@ -29,6 +29,7 @@ from config import Config
 from story_generator import StoryGenerator
 from image_generator import ImageGenerator
 from text_overlay import TextOverlay
+from video_compiler import VideoCompiler
 from pdf_compiler import StoryBookPDF
 from character_registry import CharacterRegistry
 from utils import sanitize_folder_name, get_next_story_number, create_story_folder, save_story_json
@@ -427,11 +428,39 @@ def step_overlay_text(overlay: TextOverlay, story: dict, image_paths: list[str],
     return final_paths
 
 
+def step_compile_video(
+    video_compiler: VideoCompiler, story: dict, final_images: list[str], folder_path: str
+) -> str:
+    """
+    Step 4: Compile images into a slideshow video with background music.
+    """
+    console.print("\n[bold cyan]--- STEP 4: Video Compilation ---[/bold cyan]\n")
+
+    video_filename = f"{sanitize_folder_name(story['title'])}.mp4"
+    video_path = os.path.join(folder_path, video_filename)
+
+    with console.status("[bold green]Selecting background music..."):
+        track_path = video_compiler.select_track(story)
+    console.print(f"[dim]Track: {os.path.basename(track_path)}[/dim]")
+
+    with console.status("[bold green]Compiling video slideshow..."):
+        video_path = video_compiler.compile_video(
+            story=story,
+            image_paths=final_images,
+            output_path=video_path,
+            track_path=track_path,
+        )
+
+    size_mb = os.path.getsize(video_path) / (1024 * 1024)
+    console.print(f"\n[green]Video compiled! ({size_mb:.1f} MB)[/green]")
+    return video_path
+
+
 def step_compile_pdf(compiler: StoryBookPDF, story: dict, final_images: list[str], folder_path: str) -> str:
     """
     Step 4: Compile everything into a PDF storybook.
     """
-    console.print("\n[bold cyan]━━━ STEP 4: PDF Compilation ━━━[/bold cyan]\n")
+    console.print("\n[bold cyan]--- STEP 5: PDF Compilation ---[/bold cyan]\n")
 
     pdf_filename = f"{sanitize_folder_name(story['title'])}.pdf"
     pdf_path = os.path.join(folder_path, pdf_filename)
@@ -470,6 +499,7 @@ def main():
     generator = StoryGenerator()
     image_gen = ImageGenerator(animation_style=selected_style)
     overlay = TextOverlay()
+    video_compiler = VideoCompiler()
     compiler = StoryBookPDF()
 
     # Load character registry
@@ -510,7 +540,10 @@ def main():
         # Step 3: Overlay text
         final_images = step_overlay_text(overlay, story, raw_images, folder_path)
 
-        # Step 4: Compile PDF
+        # Step 4: Compile video
+        video_path = step_compile_video(video_compiler, story, final_images, folder_path)
+
+        # Step 5: Compile PDF
         pdf_path = step_compile_pdf(compiler, story, final_images, folder_path)
 
         # ── Summary ──
@@ -526,6 +559,7 @@ def main():
         if story.get("instagram_caption"):
             summary_table.add_row("IG Caption", story["instagram_caption"])
         summary_table.add_row("Folder", folder_path)
+        summary_table.add_row("Video", video_path)
         summary_table.add_row("PDF", pdf_path)
         summary_table.add_row("Images", f"{len(final_images)} JPEG files")
 

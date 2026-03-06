@@ -14,6 +14,7 @@ if _STORYBOOK_ROOT not in sys.path:
 from story_generator import StoryGenerator
 from image_generator import ImageGenerator
 from text_overlay import TextOverlay
+from video_compiler import VideoCompiler
 from pdf_compiler import StoryBookPDF
 from character_registry import CharacterRegistry
 from config import Config
@@ -151,7 +152,24 @@ class StoryService:
                 output_dir=folder_path,
             )
 
-            # Phase 4: Compile PDF
+            # Phase 4: Compile video
+            self._update_job(
+                job_id, status="compiling_video", progress=0.80,
+                message="Compiling video slideshow...",
+            )
+
+            vid_compiler = VideoCompiler()
+            video_path = os.path.join(folder_path, "story.mp4")
+            try:
+                vid_compiler.compile_video(
+                    story=story,
+                    image_paths=final_image_paths,
+                    output_path=video_path,
+                )
+            except Exception as e:
+                logger.warning(f"Video compilation failed for job {job_id}: {e}")
+
+            # Phase 5: Compile PDF
             self._update_job(
                 job_id, status="compiling_pdf", progress=0.90,
                 message="Compiling PDF storybook...",
